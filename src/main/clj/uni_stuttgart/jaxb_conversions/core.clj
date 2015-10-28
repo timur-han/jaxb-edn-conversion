@@ -25,7 +25,6 @@
   {:pre [(:current-obj m)
          (:current-property-getter-name m)]
    :post [(:current-property-generic-type %)]}
-  (debug "Current object is" (:current-obj m))
   (debug "Current map is" m)
   (assoc m :current-property-generic-type
          (or (and (map? (:current-map m)) ((:type-keyword m) (:current-map m)))
@@ -315,7 +314,19 @@
 
 (defn jaxb-type-obj->map-recursively
   [jaxb-type-obj & m]
-  ;; (debug "jaxb-type->map-recursively")
+  "Convert given jaxb type object into a map. Jaxb type object refers
+  to any class that is generated from a schema. During this process
+  each object is converted into a map using bean clojure.core/bean and
+  afterwards each object value in the map is converted
+  recursively. During the conversion for each object an
+  additional ::type-class object-class pair is added. The :type-class
+  keyword can be customized by specifiying :type-keyword in the
+  additional map. Moreover, type-keywords can be used to add keywords
+  instead of namespaced class strings. The structure of type-mappings
+  map is {:class-type-keyword \"namespace.classname}\". During
+  transformation current object class name is searched in the values
+  of type-mappings and first matching keyword is used as type
+  identifer of ::type-class"
   (when-not (:type-keyword m)
     (warn ":type-keyword was not specified." ::type-class "will be used as type keyword..."))
   (-> {:current-obj jaxb-type-obj
@@ -361,7 +372,20 @@
       :resulting-map))
 
 (defn xml-element-obj->map
-  "Accepts an xml string and its jaxb class and converts it into maps"
+  "Convert given javax.xml.bind.JAXBElement<T> object into a map. Jaxb
+  type object refers to any class that is generated from a
+  schema. During this process each object is converted into a map
+  using bean clojure.core/bean and afterwards each object value in the
+  map is converted recursively. During the conversion for each object
+  an additional ::type-class object-class pair is
+  added. The :type-class keyword can be customized by
+  specifiying :type-keyword in the additional map. Moreover,
+  type-keywords can be used to add keywords instead of namespaced
+  class strings. The structure of type-mappings map is
+  {:class-type-keyword \"namespace.classname}\". During transformation
+  current object class name is searched in the values of type-mappings
+  and first matching keyword is used as type identifer
+  of ::type-class"
   [xml-obj & m]
   (when-not (:type-keyword m)
     (warn ":type-keyword was not specified." ::type-class "will be used as type keyword..."))
@@ -651,8 +675,6 @@
 
 (defn- map-properties->obj-properties
   [m]
-  (debug "Mapping properties into object properties")
-  (debug "Properties" m)
   (->> m
        remove-nils-from-current-map
        remove-empty-values-from-current-map
@@ -667,6 +689,19 @@
   (:current-obj m))
 
 (defn map->jaxb-type-obj
+  "Adds map fields into corresponding jaxb object. During this
+  process, each key in the map is converted into a PascalCase and
+  using this string getters and setters from the object is
+  taken. Therefore, key names must match the object members when they
+  are converted to PascalCase from kebap-case. Type map is a clojure
+  map. Type object is an instance of a JAX-B type. During
+  transformation each map can contain a property for creating new
+  instances of these types. The key of this type is specified
+  in :type-keyword of the addional map. If not specified, the default
+  is ::type-class in this map. An additional :type-mappings map can be
+  passed. The type-mappings will be used to map the given keywords
+  in (:type-keyword m) into class types, i.e., jaxb class names. Class
+  names are specified with namespaces and are strings."
   [type-map jaxb-type-obj & m]
   (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
   (-> {:current-map type-map
