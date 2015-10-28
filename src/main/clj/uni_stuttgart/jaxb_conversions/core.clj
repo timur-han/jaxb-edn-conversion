@@ -25,6 +25,7 @@
   {:pre [(:current-obj m)
          (:current-property-getter-name m)]
    :post [(:current-property-generic-type %)]}
+  (debug "Current object is" (:current-obj m))
   (debug "Current map is" m)
   (assoc m :current-property-generic-type
          (or (and (map? (:current-map m)) ((:type-keyword m) (:current-map m)))
@@ -313,7 +314,6 @@
       recreate-fields-with-resolution))
 
 (defn jaxb-type-obj->map-recursively
-  [jaxb-type-obj & m]
   "Convert given jaxb type object into a map. Jaxb type object refers
   to any class that is generated from a schema. During this process
   each object is converted into a map using bean clojure.core/bean and
@@ -327,6 +327,7 @@
   transformation current object class name is searched in the values
   of type-mappings and first matching keyword is used as type
   identifer of ::type-class"
+  [jaxb-type-obj & m]
   (when-not (:type-keyword m)
     (warn ":type-keyword was not specified." ::type-class "will be used as type keyword..."))
   (-> {:current-obj jaxb-type-obj
