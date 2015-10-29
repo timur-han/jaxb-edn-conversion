@@ -5,7 +5,7 @@
             :comments "same as Clojure"}
   :min-lein-version "2.5.0"
   :dependencies [[org.clojure/clojure "1.7.0"]
-                 [com.taoensso/timbre "3.3.1"]
+                 [com.taoensso/timbre "4.1.4"]
                  [camel-snake-kebab "0.3.2"]]
   :source-paths ["src/main/clj"]
   :plugins [[lein-modules "0.3.11"]]
