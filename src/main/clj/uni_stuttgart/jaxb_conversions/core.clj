@@ -185,7 +185,7 @@
     (.isAssignableFrom javax.xml.namespace.QName (:target-field-class m))
     (assoc m :target-field-type :qname)
 
-    (= java.lang.Object (:target-field-class m))
+    (= (:current-property-key m)  :any)
     (assoc m :target-field-type :any)
 
     :else
