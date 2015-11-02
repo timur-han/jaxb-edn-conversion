@@ -9,6 +9,7 @@
 
 (t/refer-timbre)
 
+
 (defn- xml-str->jaxb-obj
   "Converts XML string into a JAX-B object using the JAX-B context"
   [m]
@@ -157,6 +158,46 @@
                first))))
 
 
+(defn- get-declared-field
+  [m]
+  {:pre [(:current-obj m) (:field-name m)]}
+  (try (.getDeclaredField (type (:current-obj m)) (:field-name m))
+       (catch java.lang.NoSuchFieldException e (debug "Method is not there"))))
+
+(defn- add-annotations-of-property-key
+  [m]
+  {:pre [(:current-property-key m)]}
+  (let [declared-field (->> m
+                            :current-property-key
+                            cs/->camelCaseString
+                            (assoc m :field-name)
+                            get-declared-field)]
+    (assoc m :annotations (and declared-field
+                               (-> declared-field
+                                   .getDeclaredAnnotations)))))
+
+(defn- xml-id?
+  [m]
+  (and (:current-property-key m)
+       (:current-obj m)
+       (->> m
+            add-annotations-of-property-key
+            :annotations
+            (filterv #(= javax.xml.bind.annotation.XmlSchemaType (.annotationType %)))
+            (filterv #(= "ID" (.name %)))
+            first)))
+
+(defn- xml-id-ref?
+  [m]
+  (and (:current-property-key m)
+       (:current-obj m)
+       (->> m
+            add-annotations-of-property-key
+            :annotations
+            (filterv #(= javax.xml.bind.annotation.XmlSchemaType (.annotationType %)))
+            (filterv #(= "IDREF" (.name %)))
+            first)))
+
 
 (defn- add-field-type
   [m]
@@ -169,6 +210,12 @@
 
     (complex-type? m)
     (assoc m :target-field-type :complex-type)
+
+    (xml-id? m)
+    (assoc m :target-field-type :xml-id)
+
+    (xml-id-ref? m)
+    (assoc m :target-field-type :xml-id-ref)
 
     (not (class? (:target-field-class m)))
     (assoc m :target-field-type :else)
@@ -529,6 +576,67 @@
       (dissoc :target-map-keyword)))
 
 
+
+(defn- add-into-id-atom!
+  [m]
+  {:pre [(:current-property-val m) (:current-obj m) (:id-obj-map m)]}
+  (debug "Adding into id atom" [(:current-property-val m) (:current-obj m) (:id-obj-map m)])
+  (swap! (:id-obj-map m) assoc (keyword (:current-property-val m)) {:current-obj (:current-obj m)}))
+
+
+(defn- add-into-id-ref-atom!
+  [m]
+  {:pre [(:current-property-val m) (:current-obj m) (:current-property-setter-map m) (:idref-obj-map m)]}
+  (swap! (:idref-obj-map m) update-in
+         [(keyword (:current-property-val m))]
+         #(if-not %
+            [{:current-obj (:current-obj m)
+              :current-property-setter-map (:current-property-setter-map m)}]
+            (conj % {:current-obj (:current-obj m)
+                     :current-property-setter-map (:current-property-setter-map m)}))))
+
+
+(defn- update-refs-in-id-ref-atom
+  "Updates all references pointing this id with the current
+  object. Warning namespaces are not supported!!"
+  [m]
+  {:pre [(:current-property-val m) (:id-obj-map m) (:idref-obj-map m)]}
+  (debug "Updating refs " (:id-obj-map m))
+  (debug "Updating refs " (:idref-obj-map m))
+  (->> m
+       :current-property-val
+       keyword
+       (get @(:idref-obj-map m))
+       (mapv #(call-method* (:current-obj %)
+                            (:name (:current-property-setter-map %))
+                            (:current-obj m)))))
+
+
+(defn- add-id-and-set-references
+  [m]
+
+  (add-into-id-atom! m)
+  (update-refs-in-id-ref-atom m))
+
+(defn- update-refs-in-id-ref-atom-if-possible
+  [m]
+  {:pre [(:idref-obj-map m) @(:id-obj-map m) (:current-property-val m)]}
+
+  (if (get @(:id-obj-map m) (keyword (:current-property-val m)))
+    (->> m
+         :current-property-val
+         keyword
+         (get @(:id-obj-map m))
+         :curret-obj
+         (assoc m :current-obj)
+         update-refs-in-id-ref-atom)))
+
+(defn- add-id-ref-and-set-references
+  [m]
+  (add-into-id-ref-atom! m)
+  (update-refs-in-id-ref-atom-if-possible m))
+
+
 (declare map-properties->obj-properties)
 
 
@@ -604,6 +712,20 @@
       ;;               (:name (:current-property-setter-map m))
       ;;               (if (map? (:current-property-val m)) (java.util.HashMap. (:current-property-val m))))
       )
+
+    (= (:target-field-type m) :xml-id)
+    (do
+      (debug "It's an XML ID" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      (call-method* (:current-obj m)
+                    (:name (:current-property-setter-map m))
+                    (:current-property-val m))
+      (add-id-and-set-references m))
+
+    (= (:target-field-type m) :xml-id-ref)
+    (do
+      (debug "It's an ID REF" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+
+      (add-id-ref-and-set-references m))
 
 
     :else
@@ -708,5 +830,7 @@
   (-> {:current-map type-map
        :current-obj jaxb-type-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
-       :type-mappings (:type-mappings (first m))}
+       :type-mappings (:type-mappings (first m))
+       :id-obj-map (atom {})
+       :idref-obj-map (atom {})}
       map-properties->obj-properties))
