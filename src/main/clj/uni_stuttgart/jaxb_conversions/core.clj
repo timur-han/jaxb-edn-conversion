@@ -199,12 +199,28 @@
             first)))
 
 
+(defn- resolve-id-ref-str
+  [m]
+  (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
+  ((->> m
+              :current-obj
+              bean
+              (filterv #(-> m
+                            (assoc :current-property-key (first %))
+                            xml-id?))
+              first
+              second)))
+
+
 (defn- add-field-type
   [m]
   {:pre [(:target-field-class m)]
    :post [(:target-field-type %)]}
   (debug "Adding field type for" (:target-field-class m))
   (cond
+    (xml-id-ref? m)
+    (assoc m :target-field-type :xml-id-ref)
+
     (simple-type? m)
     (assoc m :target-field-type :simple-type)
 
@@ -213,9 +229,6 @@
 
     (xml-id? m)
     (assoc m :target-field-type :xml-id)
-
-    (xml-id-ref? m)
-    (assoc m :target-field-type :xml-id-ref)
 
     (not (class? (:target-field-class m)))
     (assoc m :target-field-type :else)
@@ -292,6 +305,14 @@
        (-> m
            (assoc :jaxb-obj (:current-property-val m))
            jaxb-obj->map)])
+
+    (= (:target-field-type m) :xml-id-ref)
+    (do
+      ;; (debug "It's a map field" (:current-property-key m) (:current-property-val m))
+      [(:current-property-key m)
+       (-> m
+           (assoc :current-obj (:current-property-val m))
+           resolve-id-ref-str)])
 
     :else
     [(:current-property-key m) (:current-property-val m)]))
