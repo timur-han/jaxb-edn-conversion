@@ -259,7 +259,7 @@
   {:pre [(:current-property-key m)
          (:target-field-type m)
          (:current-property-val m)]}
-  ;; (debug "Resolving field")
+  ;; (debug "Resolving field" (:current-property-key m) (:current-property-val m))
   (cond
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
@@ -294,7 +294,7 @@
 
     (= (:target-field-type m) :qname)
     (do
-      ;; (debug "It's a qname" (:current-property-key m) (:current-property-val m))
+      (debug "It's a qname" (:current-property-key m) (:current-property-val m))
       [(:current-property-key m)
        (.toString (:current-property-val m))])
 
@@ -357,19 +357,21 @@
 
 (defn- recreate-fields-with-resolution
   [m]
-  ;; (debug "Resolving fields of a map recursively" (:current-map m))
+  (debug "Resolving fields of a map recursively" (:current-map m))
   (->> m
        add-type-class
        :current-map
        (mapv
-        #(-> m
+        #(do
+           (debug "Current property" %)
+           (-> m
              (assoc :current-property-key (if-not (= (first %) (:type-keyword m))
                                             (cs/->kebab-case-keyword (first %))
                                             (first %)))
              (assoc :current-property-val (second %))
              (assoc :target-field-class (type (second %)))
              add-field-type
-             resolve-field))
+             resolve-field)))
        remove-empty-vectors
        (into {})))
 
@@ -396,8 +398,8 @@
   of type-mappings and first matching keyword is used as type
   identifer of ::type-class"
   [jaxb-type-obj & m]
-  (when-not (:type-keyword m)
-    (warn ":type-keyword was not specified." ::type-class "will be used as type keyword..."))
+  (when-not (:type-keyword (first m))
+    (warn ":type-keyword was not specified in" m ::type-class "will be used as type keyword..."))
   (-> {:current-obj jaxb-type-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
        :type-mappings (:type-mappings (first m))}
@@ -456,7 +458,7 @@
   and first matching keyword is used as type identifer
   of ::type-class"
   [xml-obj & m]
-  (when-not (:type-keyword m)
+  (when-not (:type-keyword (first m))
     (warn ":type-keyword was not specified." ::type-class "will be used as type keyword..."))
   (-> {:jaxb-obj xml-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
@@ -622,8 +624,9 @@
   object. Warning namespaces are not supported!!"
   [m]
   {:pre [(:current-property-val m) (:id-obj-map m) (:idref-obj-map m)]}
-  (debug "Updating refs " (:id-obj-map m))
-  (debug "Updating refs " (:idref-obj-map m))
+  (debug "Updating refs " @(:id-obj-map m))
+  (debug "Updating refs " (:current-property-val m))
+  (debug "Updating refs " @(:idref-obj-map m))
   (->> m
        :current-property-val
        keyword
@@ -642,13 +645,12 @@
 (defn- update-refs-in-id-ref-atom-if-possible
   [m]
   {:pre [(:idref-obj-map m) @(:id-obj-map m) (:current-property-val m)]}
-
   (if (get @(:id-obj-map m) (keyword (:current-property-val m)))
     (->> m
          :current-property-val
          keyword
          (get @(:id-obj-map m))
-         :curret-obj
+         :current-obj
          (assoc m :current-obj)
          update-refs-in-id-ref-atom)))
 
@@ -718,7 +720,7 @@
 
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
-                    (javax.xml.namespace.QName. (:current-property-val m))))
+                    (javax.xml.namespace.QName/valueOf (:current-property-val m))))
 
     (= (:target-field-type m) :jaxb-element)
     (do
@@ -816,7 +818,6 @@
 
 
 
-
 (defn- map-properties->obj-properties
   [m]
   (->> m
@@ -828,7 +829,9 @@
            (-> m
                resolve-type-class-of-current-map
                (assoc :current-property-key (cs/->camelCaseKeyword (first %)))
-               (assoc :current-property-val (second %))
+               (assoc :current-property-val (if (keyword? (second %))
+                                              (str (second %))
+                                              (second %)))
                add-compatible-properties))))
   (:current-obj m))
 
