@@ -26,8 +26,8 @@
   {:pre [(:current-obj m)
          (:current-property-getter-name m)]
    :post [(:current-property-generic-type %)]}
-  (debug "Current object is" (:current-obj m))
-  (debug "Current map is" m)
+  ;; (debug "Current object is" (:current-obj m))
+  ;; (debug "Current map is" m)
   (assoc m :current-property-generic-type
          (or (and (map? (:current-map m)) ((:type-keyword m) (:current-map m)))
              (-> m
@@ -97,7 +97,7 @@
 (defn- clean-up-object-bean-map
   [m]
   {:pre [(:current-map m)]}
-  (debug "Cleaning bean map" (:current-map m))
+  ;; (debug "Cleaning bean map" (:current-map m))
   (-> m
       remove-class-from-current-map
       remove-nils-from-current-map
@@ -162,7 +162,7 @@
   [m]
   {:pre [(:current-obj m) (:field-name m)]}
   (try (.getDeclaredField (type (:current-obj m)) (:field-name m))
-       (catch java.lang.NoSuchFieldException e (debug "Method is not there"))))
+       (catch java.lang.NoSuchFieldException e (debug "Method is not there" e))))
 
 (defn- add-annotations-of-property-key
   [m]
@@ -201,7 +201,7 @@
 
 (defn- resolve-id-ref-str
   [m]
-  (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
+  ;; (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
   ((->> m
               :current-obj
               bean
@@ -211,12 +211,15 @@
               first
               second)))
 
+(defn- other-attributes?
+  [m]
+  (= :otherAttributes (:current-field-key m)))
 
 (defn- add-field-type
   [m]
   {:pre [(:target-field-class m)]
    :post [(:target-field-type %)]}
-  (debug "Adding field type for" (:target-field-class m))
+  (debug "Adding field type for" m)
   (cond
     (xml-id-ref? m)
     (assoc m :target-field-type :xml-id-ref)
@@ -227,23 +230,33 @@
     (complex-type? m)
     (assoc m :target-field-type :complex-type)
 
+    (other-attributes? m)
+    (assoc m :target-field-type :other-attributes)
+
     (xml-id? m)
     (assoc m :target-field-type :xml-id)
 
     (not (class? (:target-field-class m)))
     (assoc m :target-field-type :else)
 
-    (.isAssignableFrom java.util.List (:target-field-class m))
-    (assoc m :target-field-type :list)
+    (.isAssignableFrom javax.xml.datatype.XMLGregorianCalendar (:target-field-class m))
+    (assoc m :target-field-type :time)
 
     (.isAssignableFrom java.util.Map (:target-field-class m))
     (assoc m :target-field-type :map)
+
+    (.isAssignableFrom java.util.List (:target-field-class m))
+    (assoc m :target-field-type :list)
 
     (.isAssignableFrom javax.xml.bind.JAXBElement (:target-field-class m))
     (assoc m :target-field-type :jaxb-element)
 
     (.isAssignableFrom javax.xml.namespace.QName (:target-field-class m))
     (assoc m :target-field-type :qname)
+
+    (or (.isAssignableFrom java.lang.Integer (:target-field-class m))
+        (.isAssignableFrom (type int) (type (:target-field-class m))))
+    (assoc m :target-field-type :int)
 
     (= (:current-property-key m)  :any)
     (assoc m :target-field-type :any)
@@ -264,7 +277,7 @@
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
     (do
-      (debug "It's a complex type" (:current-property-key m) (:current-property-val m))
+      ;; (debug "It's a complex type" (:current-property-key m) (:current-property-val m))
       [(:current-property-key m)
        (-> m
            (assoc :current-obj (:current-property-val m))
@@ -272,7 +285,7 @@
     ;; simple type
     (= (:target-field-type m) :simple-type)
     (do
-      (debug "It's a simple type" (:current-property-key m) (:current-property-val m))
+      ;; (debug "It's a simple type" (:current-property-key m) (:current-property-val m))
       [(:current-property-key m)
        (.value (:current-property-val m))])
     ;; in case it's a list return it as a list
@@ -294,7 +307,7 @@
 
     (= (:target-field-type m) :qname)
     (do
-      (debug "It's a qname" (:current-property-key m) (:current-property-val m))
+      ;; (debug "It's a qname" (:current-property-key m) (:current-property-val m))
       [(:current-property-key m)
        (.toString (:current-property-val m))])
 
@@ -530,7 +543,7 @@
 (defn- add-propperty-setter-member-map
   [m]
   {:pre [(:current-property-setter-name m)]}
-  (debug "Adding property setter" m)
+  ;; (debug "Adding property setter" m)
   (->> (assoc m :current-member-name (:current-property-setter-name m))
        add-property-member-map
        :current-property-member-map
@@ -565,14 +578,12 @@
 
 (defn- call-method*
   [obj m & args]
-  (debug "Calling method for" obj m args (first args))
-  (if (seq (filter #(instance? clojure.lang.PersistentHashMap %) args)) (debug "MAP IN CALL METHOD" args))
   (clojure.lang.Reflector/invokeInstanceMethod obj (str m) (into-array args)))
 
 (defn- add-obj-using-generic-type
   [m]
   {:pre [(:current-property-generic-type m)]}
-  (debug "Adding object using generic class" (:current-property-generic-type m))
+  ;; (debug "Adding object using generic class" (:current-property-generic-type m))
   (assoc m :current-obj (clojure.lang.Reflector/invokeConstructor (if (class? (:current-property-generic-type m))
                                                                     (:current-property-generic-type m)
                                                                     (resolve (symbol (:current-property-generic-type m))))
@@ -603,7 +614,7 @@
 (defn- add-into-id-atom!
   [m]
   {:pre [(:current-property-val m) (:current-obj m) (:id-obj-map m)]}
-  (debug "Adding into id atom" [(:current-property-val m) (:current-obj m) (:id-obj-map m)])
+  ;; (debug "Adding into id atom" [(:current-property-val m) (:current-obj m) (:id-obj-map m)])
   (swap! (:id-obj-map m) assoc (keyword (:current-property-val m)) {:current-obj (:current-obj m)}))
 
 
@@ -624,9 +635,9 @@
   object. Warning namespaces are not supported!!"
   [m]
   {:pre [(:current-property-val m) (:id-obj-map m) (:idref-obj-map m)]}
-  (debug "Updating refs " @(:id-obj-map m))
-  (debug "Updating refs " (:current-property-val m))
-  (debug "Updating refs " @(:idref-obj-map m))
+  ;; (debug "Updating refs " @(:id-obj-map m))
+  ;; (debug "Updating refs " (:current-property-val m))
+  ;; (debug "Updating refs " @(:idref-obj-map m))
   (->> m
        :current-property-val
        keyword
@@ -670,14 +681,14 @@
          (:current-field-val m)
          (:current-obj m)]}
   ;; (debug "Following type will be converted into java obj" m)
-  (debug "Following type will be converted into java obj" m)
-
+  ;; (debug "Following type will be converted into java obj" m)
+  (debug "Adding" m (:current-field-key m) (:current-field-val m))
   (cond
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
     (do
-      (debug "It's a recursive field" m (:current-property-val m) (:current-field-val m))
-      (debug "type" (type (:target-field-class m)))
+      ;; (debug "It's a recursive field" m (:current-property-val m) (:current-field-val m))
+      ;; (debug "type" (type (:target-field-class m)))
       ;; it's a complex type
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
@@ -688,7 +699,7 @@
     ;; it's a simple type
     (= (:target-field-type m) :simple-type)
     (do
-      (debug "It's a simple type" m (:current-property-val m) (:current-field-val m))
+      ;; (debug "It's a simple type" m (:current-property-val m) (:current-field-val m))
       ;; it's a complex type
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
@@ -697,7 +708,7 @@
     ;; in case it's a list return it as a list
     (= (:target-field-type m) :list)
     (do
-      (debug "It's a list field" (:current-property-val m) (:current-field-val m))
+      ;; (debug "It's a list field" (:current-property-val m) (:current-field-val m))
       ;; (debug "It's a list field" (r/reflect (:current-property-val m)))
       (call-method* (:current-field-val m) "addAll"
                     (java.util.ArrayList. (mapv
@@ -711,12 +722,12 @@
 
     (= (:target-field-type m) :map)
     (do
-      (debug "It's a map field" (:current-property-val m) (:current-field-val m))
+      ;; (debug "It's a map field" (:current-property-val m) (:current-field-val m))
       (call-method* (:current-field-val m) "putAll" (java.util.HashMap. (:current-property-val m))))
 
     (= (:target-field-type m) :qname)
     (do
-      (debug "It's a qname field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      ;; (debug "It's a qname field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
 
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
@@ -727,9 +738,17 @@
       ;; (debug "It's a jaxb field" (:current-property-key m) (:current-property-val m))
       )
 
+    (= (:target-field-type m) :int)
+    (do
+      ;; (debug "It's a qname field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+
+      (call-method* (:current-obj m)
+                    (:name (:current-property-setter-map m))
+                    (int (:current-property-val m))))
+
     (= (:target-field-type m) :any)
     (do
-      (debug "It's any field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      ;; (debug "It's any field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
 
       ;; (call-method* (:current-obj m)
       ;;               (:name (:current-property-setter-map m))
@@ -738,7 +757,7 @@
 
     (= (:target-field-type m) :xml-id)
     (do
-      (debug "It's an XML ID" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      ;; (debug "It's an XML ID" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
                     (:current-property-val m))
@@ -746,35 +765,47 @@
 
     (= (:target-field-type m) :xml-id-ref)
     (do
-      (debug "It's an ID REF" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      ;; (debug "It's an ID REF" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
 
       (add-id-ref-and-set-references m))
-
+    (= (:target-field-type m) :other-attributes)
+    (do
+      ;; (debug "It's an XML ID" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+      (call-method* (:current-obj m)
+                    (:name (:current-property-setter-map m))
+                    (java.util.HashMap. (:current-property-val m))))
 
     :else
     (do
-      (debug "Otherwise'" (:current-property-val m) (:current-field-val m))
+      ;; (debug "Otherwise'" (:current-property-val m) (:current-field-val m))
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
                     (:current-property-val m)))))
+
+(defn- convert-if-int
+  [v]
+  (if (= (type v) (type int))
+    java.lang.Integer
+    v))
 
 (defn- add-target-field-class
   [m]
   {:pre [(or ((:type-keyword m) m) (:current-property-getter-map m))]
    :post [(:target-field-class %)]}
-  (debug "Is that a map?" (map? (:current-property-val m)))
+  ;; (debug "Is that a map?" (map? (:current-property-val m)))
   (->> (or (and (map? (:current-property-val m)) ((:type-keyword m) (:current-property-val m)) (symbol ((:type-keyword m) (:current-property-val m))))
            (-> m :current-property-getter-map :return-type))
        eval
+       (convert-if-int)
        (assoc m :target-field-class)))
 
-
+()
 (defn- add-field-obj
   [m]
   {:pre [(:current-obj m)
          (:target-field-class m)]}
   (debug "Adding field object" m)
-  (debug "Type of class field " (type (:target-field-class m)))
+  ;; (debug "Type of class field " (type (:target-field-class m)))
   (when (:current-property-getter-map m)
     (assoc m :current-field-val
            (cond
@@ -785,10 +816,14 @@
              ;;
              (= javax.xml.namespace.QName (:target-field-class m))
              (javax.xml.namespace.QName. "")
+
+             (= javax.xml.datatype.XMLGregorianCalendar (:target-field-class m))
+             (.newXMLGregorianCalendar (javax.xml.datatype.DatatypeFactory/newInstance))
              ;;
              :else
-             (clojure.lang.Reflector/invokeConstructor (:target-field-class m) (to-array []))
-             ))))
+             (clojure.lang.Reflector/invokeConstructor (:target-field-class m) (to-array []))))))
+
+
 
 (defn- resolve-type-class-of-property-val
   [m]
@@ -801,7 +836,7 @@
 (defn- add-compatible-properties
   [m]
   {:pre [(:current-property-key m) (:current-property-val m)]}
-  (debug "Adding maps for the property" m)
+  ;; (debug "Adding maps for the property" m)
   (when-not (= (:current-property-key m) (:type-keyword m))
     (-> m
         add-current-property-setter-name
