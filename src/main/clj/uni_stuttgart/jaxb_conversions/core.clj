@@ -219,7 +219,7 @@
   [m]
   {:pre [(:target-field-class m)]
    :post [(:target-field-type %)]}
-  (debug "Adding field type for" m)
+  ; (debug "Adding field type for" m)
   (cond
     (xml-id-ref? m)
     (assoc m :target-field-type :xml-id-ref)
@@ -232,6 +232,9 @@
 
     (other-attributes? m)
     (assoc m :target-field-type :other-attributes)
+
+    (= (:current-property-key m)  :any)
+    (assoc m :target-field-type :any)
 
     (xml-id? m)
     (assoc m :target-field-type :xml-id)
@@ -257,9 +260,6 @@
     (or (.isAssignableFrom java.lang.Integer (:target-field-class m))
         (.isAssignableFrom (type int) (type (:target-field-class m))))
     (assoc m :target-field-type :int)
-
-    (= (:current-property-key m)  :any)
-    (assoc m :target-field-type :any)
 
     :else
     (assoc m :target-field-type :else)))
@@ -370,7 +370,7 @@
 
 (defn- recreate-fields-with-resolution
   [m]
-  (debug "Resolving fields of a map recursively" (:current-map m))
+  ;; (debug "Resolving fields of a map recursively" (:current-map m))
   (->> m
        add-type-class
        :current-map
@@ -682,7 +682,6 @@
          (:current-obj m)]}
   ;; (debug "Following type will be converted into java obj" m)
   ;; (debug "Following type will be converted into java obj" m)
-  (debug "Adding" m (:current-field-key m) (:current-field-val m))
   (cond
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
@@ -746,6 +745,15 @@
                     (:name (:current-property-setter-map m))
                     (int (:current-property-val m))))
 
+    (= (:target-field-type m) :time)
+    (do
+      ;; (debug "It's a qname field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
+
+      (call-method* (:current-obj m)
+                    (:name (:current-property-setter-map m))
+                    (:current-field-val m)))
+
+
     (= (:target-field-type m) :any)
     (do
       ;; (debug "It's any field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
@@ -804,7 +812,7 @@
   [m]
   {:pre [(:current-obj m)
          (:target-field-class m)]}
-  (debug "Adding field object" m)
+  ;; (debug "Adding field object" m)
   ;; (debug "Type of class field " (type (:target-field-class m)))
   (when (:current-property-getter-map m)
     (assoc m :current-field-val
@@ -815,10 +823,14 @@
                            (:name (:current-property-getter-map m)))
              ;;
              (= javax.xml.namespace.QName (:target-field-class m))
-             (javax.xml.namespace.QName. "")
+             (javax.xml.namespace.QName/valueOf (:current-property-val m))
 
              (= javax.xml.datatype.XMLGregorianCalendar (:target-field-class m))
-             (.newXMLGregorianCalendar (javax.xml.datatype.DatatypeFactory/newInstance))
+             (cond
+               (string? (:current-property-val m))
+               (.newXMLGregorianCalendar (javax.xml.datatype.DatatypeFactory/newInstance))
+               (instance? javax.xml.datatype.XMLGregorianCalendar (:current-property-val m))
+               (:current-property-val m))
              ;;
              :else
              (clojure.lang.Reflector/invokeConstructor (:target-field-class m) (to-array []))))))
@@ -885,7 +897,7 @@
   in (:type-keyword m) into class types, i.e., jaxb class names. Class
   names are specified with namespaces and are strings."
   [type-map jaxb-type-obj & m]
-  (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
+  ;; (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
   (-> {:current-map type-map
        :current-obj jaxb-type-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
