@@ -162,7 +162,7 @@
   [m]
   {:pre [(:current-obj m) (:field-name m)]}
   (try (.getDeclaredField (type (:current-obj m)) (:field-name m))
-       (catch java.lang.NoSuchFieldException e (debug "Method is not there" e))))
+       (catch java.lang.NoSuchFieldException e (warn "Method is not there" e))))
 
 (defn- add-annotations-of-property-key
   [m]
@@ -327,6 +327,18 @@
            (assoc :current-obj (:current-property-val m))
            resolve-id-ref-str)])
 
+    (= (:target-field-type m) :any)
+    (do
+      ;; (debug "It's any field" (:current-property-key m) (:current-property-val m) (vector? (:current-property-val m)) (type (:current-property-val m)))
+      [(:current-property-key m)
+       (cond
+         (instance? java.util.List (:current-property-val m))
+         (mapv
+          #(-> m
+               (assoc :current-obj %)
+               jaxb-type->map-recursively)
+          (:current-property-val m)))])
+
     :else
     [(:current-property-key m) (:current-property-val m)]))
 
@@ -376,7 +388,7 @@
        :current-map
        (mapv
         #(do
-           (debug "Current property" %)
+           (debug "Current property" (first %))
            (-> m
              (assoc :current-property-key (if-not (= (first %) (:type-keyword m))
                                             (cs/->kebab-case-keyword (first %))
@@ -757,11 +769,17 @@
     (= (:target-field-type m) :any)
     (do
       ;; (debug "It's any field" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
-
-      ;; (call-method* (:current-obj m)
-      ;;               (:name (:current-property-setter-map m))
-      ;;               (if (map? (:current-property-val m)) (java.util.HashMap. (:current-property-val m))))
-      )
+      (cond
+        (instance? java.util.List (:current-field-val m)) ;; any is not singular rather max is *
+        (call-method* (:current-field-val m) "addAll"
+                    (java.util.ArrayList. (mapv
+                                           #(-> m
+                                                (assoc :current-map %)
+                                                resolve-type-class-of-current-map
+                                                add-generic-type-of-instance-method
+                                                add-obj-using-generic-type
+                                                map-properties->obj-properties)
+                                           (:current-property-val m))))))
 
     (= (:target-field-type m) :xml-id)
     (do
