@@ -160,9 +160,15 @@
 
 (defn- get-declared-field
   [m]
-  {:pre [(:current-obj m) (:field-name m)]}
-  (try (.getDeclaredField (type (:current-obj m)) (:field-name m))
-       (catch java.lang.NoSuchFieldException e (warn "Method is not there" e))))
+  {:pre [(:current-type m) (:field-name m)]}
+  (debug "Current obj" (:current-type m) (:field-name m))
+  (try (.getDeclaredField (:current-type m) (:field-name m))
+       (catch java.lang.NoSuchFieldException e
+         (do
+           (warn "Method is not there checking superclasses" e)
+           (if (.getSuperclass (:current-type m))
+             (get-declared-field (assoc m :current-type (.getSuperclass (:current-type m)))))))))
+
 
 (defn- add-annotations-of-property-key
   [m]
@@ -170,7 +176,7 @@
   (let [declared-field (->> m
                             :current-property-key
                             cs/->camelCaseString
-                            (assoc m :field-name)
+                            (assoc m :current-type (type (:current-obj m)) :field-name)
                             get-declared-field)]
     (assoc m :annotations (and declared-field
                                (-> declared-field
@@ -198,10 +204,10 @@
             (filterv #(= "IDREF" (.name %)))
             first)))
 
-
+;; dev.clojure.org/jira/browse/CLJ-1841
 (defn- resolve-id-ref-str
   [m]
-  ;; (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
+  ; (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
   ((->> m
               :current-obj
               bean
