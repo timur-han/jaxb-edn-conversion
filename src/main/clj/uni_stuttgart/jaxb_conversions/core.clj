@@ -380,11 +380,25 @@
         (:current-obj-class-str m))
     (:current-obj-class-str m)))
 
+
+(defn- add-current-obj-type-string
+  [m]
+  {:pre [(:current-obj m)]
+   :post [(:current-obj-class-str %)]}
+  (assoc m :current-obj-class-str (-> m
+      :current-obj
+      type
+      str
+      (clojure.string/split #" ")
+      second)))
+
 (defn- add-type-class
   [m]
   {:pre [(:current-obj m)]
    :post [(get-in % [:current-map (:type-keyword m)])]}
-  (assoc-in m [:current-map (:type-keyword m)] (resolve-str-into-entity-keyword (assoc m :current-obj-class-str (.getCanonicalName (type (:current-obj m)))))))
+  (assoc-in m [:current-map (:type-keyword m)] (->> m
+                                                    add-current-obj-type-string
+                                                    resolve-str-into-entity-keyword)))
 
 (defn- recreate-fields-with-resolution
   [m]
@@ -831,7 +845,7 @@
        (convert-if-int)
        (assoc m :target-field-class)))
 
-()
+
 (defn- add-field-obj
   [m]
   {:pre [(:current-obj m)
