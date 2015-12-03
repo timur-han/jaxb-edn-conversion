@@ -627,7 +627,7 @@
   [m]
   {:pre [(:target-map-keyword m) (keyword? (:target-map-keyword m))]}
   (if (get-in m [(:target-map-keyword m) (:type-keyword m)])
-    (when-not (class? (get-in m [:current-map (:type-keyword m)]))
+    (when-not (class? (get-in m [(:target-map-keyword m) (:type-keyword m)]))
       (update-in m [(:target-map-keyword m) (:type-keyword m)]
                  #(if (:type-mappings m) ;; add type class if available from mappings if not from strign conversion
                     (get (:type-mappings m) %)
@@ -640,7 +640,6 @@
       (assoc :target-map-keyword :current-map)
       resolve-type-class
       (dissoc :target-map-keyword)))
-
 
 
 (defn- add-into-id-atom!
@@ -836,10 +835,12 @@
 
 (defn- add-target-field-class
   [m]
-  {:pre [(or ((:type-keyword m) m) (:current-property-getter-map m))]
+  {:pre [(or ((:type-keyword m) (:current-property-val m))
+             (:current-property-getter-map m))]
    :post [(:target-field-class %)]}
-  ;; (debug "Is that a map?" (map? (:current-property-val m)))
-  (->> (or (and (map? (:current-property-val m)) ((:type-keyword m) (:current-property-val m)) (symbol ((:type-keyword m) (:current-property-val m))))
+  (->> (or (and (map? (:current-property-val m))
+                ((:type-keyword m) (:current-property-val m))
+                (symbol ((:type-keyword m) (:current-property-val m))))
            (-> m :current-property-getter-map :return-type))
        eval
        (convert-if-int)
@@ -851,7 +852,7 @@
   {:pre [(:current-obj m)
          (:target-field-class m)]}
   ;; (debug "Adding field object" m)
-  ;; (debug "Type of class field " (type (:target-field-class m)))
+  ;; (debug "Type of class field " (:target-field-class m) (type (:target-field-class m)))
   (when (:current-property-getter-map m)
     (assoc m :current-field-val
            (cond
@@ -877,6 +878,7 @@
 
 (defn- resolve-type-class-of-property-val
   [m]
+  (debug ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
   (-> m
       (assoc :target-map-keyword :current-property-val)
       resolve-type-class
@@ -886,7 +888,7 @@
 (defn- add-compatible-properties
   [m]
   {:pre [(:current-property-key m) (:current-property-val m)]}
-  ;; (debug "Adding maps for the property" m)
+  (debug "Adding maps for the property" m)
   (when-not (= (:current-property-key m) (:type-keyword m))
     (-> m
         add-current-property-setter-name
