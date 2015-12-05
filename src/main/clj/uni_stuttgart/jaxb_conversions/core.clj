@@ -878,7 +878,7 @@
 
 (defn- resolve-type-class-of-property-val
   [m]
-  (debug ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
+  ;; (debug ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
   (-> m
       (assoc :target-map-keyword :current-property-val)
       resolve-type-class
@@ -888,7 +888,7 @@
 (defn- add-compatible-properties
   [m]
   {:pre [(:current-property-key m) (:current-property-val m)]}
-  (debug "Adding maps for the property" m)
+  ;; (debug "Adding maps for the property" m)
   (when-not (= (:current-property-key m) (:type-keyword m))
     (-> m
         add-current-property-setter-name
