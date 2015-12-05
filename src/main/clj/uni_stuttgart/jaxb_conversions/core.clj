@@ -161,11 +161,11 @@
 (defn- get-declared-field
   [m]
   {:pre [(:current-type m) (:field-name m)]}
-  (debug "Current obj" (:current-type m) (:field-name m))
+  ;; (debug "Current obj" (:current-type m) (:field-name m))
   (try (.getDeclaredField (:current-type m) (:field-name m))
        (catch java.lang.NoSuchFieldException e
          (do
-           (warn "Method is not there checking superclasses" e)
+           ;; (warn "Method is not there checking superclasses" e)
            (if (.getSuperclass (:current-type m))
              (get-declared-field (assoc m :current-type (.getSuperclass (:current-type m)))))))))
 
@@ -408,7 +408,7 @@
        :current-map
        (mapv
         #(do
-           (debug "Current property" (first %))
+           ;; (debug "Current property" (first %))
            (-> m
              (assoc :current-property-key (if-not (= (first %) (:type-keyword m))
                                             (cs/->kebab-case-keyword (first %))
