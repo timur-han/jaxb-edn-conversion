@@ -219,7 +219,9 @@
 
 (defn- other-attributes?
   [m]
-  (= :otherAttributes (:current-field-key m)))
+  (or
+   (= :otherAttributes (:current-property-key m))
+   (= :other-attributes (:current-property-key m))))
 
 (defn- add-field-type
   [m]
@@ -344,6 +346,15 @@
                (assoc :current-obj %)
                jaxb-type->map-recursively)
           (:current-property-val m)))])
+
+    (= (:target-field-type m) :other-attributes)
+    (do
+      [(:current-property-key m)
+       (->> m
+            :current-property-val
+            (into {})
+            (mapv #(vector (str (first %)) (second %)))
+            (into {}))])
 
     :else
     [(:current-property-key m) (:current-property-val m)]))
@@ -610,6 +621,7 @@
 
 (defn- call-method*
   [obj m & args]
+  (debug "Calling" (str m))
   (clojure.lang.Reflector/invokeInstanceMethod obj (str m) (into-array args)))
 
 (defn- add-obj-using-generic-type
@@ -711,7 +723,7 @@
   {:pre [(:target-field-type m)
          (:current-field-val m)
          (:current-obj m)]}
-  ;; (debug "Following type will be converted into java obj" m)
+  (debug "Following type will be converted into java obj" (:current-property-key m))
   ;; (debug "Following type will be converted into java obj" m)
   (cond
     ;; another type that needs to be resolved
@@ -730,7 +742,7 @@
     (= (:target-field-type m) :simple-type)
     (do
       ;; (debug "It's a simple type" m (:current-property-val m) (:current-field-val m))
-      ;; it's a complex type
+      ;; it's a simple type
       (call-method* (:current-obj m)
                     (:name (:current-property-setter-map m))
                     (clojure.lang.Reflector/invokeStaticMethod (:target-field-class m) "fromValue" (into-array [(:current-property-val m)]))))
@@ -815,10 +827,14 @@
       (add-id-ref-and-set-references m))
     (= (:target-field-type m) :other-attributes)
     (do
-      ;; (debug "It's an XML ID" (:current-property-val m) (type (:current-property-val m)) (:current-field-val m))
-      (call-method* (:current-obj m)
-                    (:name (:current-property-setter-map m))
-                    (java.util.HashMap. (:current-property-val m))))
+      ;; (debug "Other attributes" m)
+      (call-method* (:current-field-val m)
+                    "putAll"
+                    (->> m
+                         :current-property-val
+                         (mapv #(vector (javax.xml.namespace.QName/valueOf (first %))
+                                        (second %)))
+                         (into {}))))
 
     :else
     (do
