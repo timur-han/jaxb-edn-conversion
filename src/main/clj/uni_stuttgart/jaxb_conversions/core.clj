@@ -621,7 +621,6 @@
 
 (defn- call-method*
   [obj m & args]
-  (debug "Calling" (str m))
   (clojure.lang.Reflector/invokeInstanceMethod obj (str m) (into-array args)))
 
 (defn- add-obj-using-generic-type
@@ -723,7 +722,7 @@
   {:pre [(:target-field-type m)
          (:current-field-val m)
          (:current-obj m)]}
-  (debug "Following type will be converted into java obj" (:current-property-key m))
+  ;; (debug "Following type will be converted into java obj" (:current-property-key m))
   ;; (debug "Following type will be converted into java obj" m)
   (cond
     ;; another type that needs to be resolved
