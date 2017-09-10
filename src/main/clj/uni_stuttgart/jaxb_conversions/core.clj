@@ -280,13 +280,15 @@
   {:pre [(:current-property-key m)
          (:target-field-type m)
          (:current-property-val m)]}
-  ;; (debug "Resolving field" (:current-property-key m) (:current-property-val m))
+  (debug "Resolving field" (:map-ns m) (:current-property-key m) (:current-property-val m))
   (cond
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
     (do
       ;; (debug "It's a complex type" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (-> m
            (assoc :current-obj (:current-property-val m))
            jaxb-type->map-recursively)])
@@ -294,13 +296,17 @@
     (= (:target-field-type m) :simple-type)
     (do
       ;; (debug "It's a simple type" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (.value (:current-property-val m))])
     ;; in case it's a list return it as a list
     (= (:target-field-type m) :list)
     (do
       ;; (debug "It's a list field" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (mapv
        #(-> m
             (assoc :current-obj %)
@@ -310,19 +316,25 @@
     (= (:target-field-type m) :map)
     (do
       ;; (debug "It's a map field" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (into {} (:current-property-val m))])
 
     (= (:target-field-type m) :qname)
     (do
       ;; (debug "It's a qname" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (.toString (:current-property-val m))])
 
     (= (:target-field-type m) :jaxb-element)
     (do
       ;; (debug "It's a map field" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (-> m
            (assoc :jaxb-obj (:current-property-val m))
            jaxb-obj->map)])
@@ -330,7 +342,9 @@
     (= (:target-field-type m) :xml-id-ref)
     (do
       ;; (debug "It's a map field" (:current-property-key m) (:current-property-val m))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (-> m
            (assoc :current-obj (:current-property-val m))
            resolve-id-ref-str)])
@@ -338,7 +352,9 @@
     (= (:target-field-type m) :any)
     (do
       ;; (debug "It's any field" (:current-property-key m) (:current-property-val m) (vector? (:current-property-val m)) (type (:current-property-val m)))
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (cond
          (instance? java.util.List (:current-property-val m))
          (mapv
@@ -349,7 +365,9 @@
 
     (= (:target-field-type m) :other-attributes)
     (do
-      [(:current-property-key m)
+      [(if (:map-ns m)
+         (keyword (:map-ns m) (name (:current-property-key m)))
+         (:current-property-key m))
        (->> m
             :current-property-val
             (into {})
@@ -357,7 +375,10 @@
             (into {}))])
 
     :else
-    [(:current-property-key m) (:current-property-val m)]))
+    [(if (:map-ns m)
+       (keyword (:map-ns m) (name (:current-property-key m)))
+       (:current-property-key m))
+     (:current-property-val m)]))
 
 
 (defn- remove-empty-vectors
@@ -452,11 +473,14 @@
   map is {:class-type-keyword \"namespace.classname}\". During
   transformation current object class name is searched in the values
   of type-mappings and first matching keyword is used as type
-  identifer of ::type-class"
+  identifer of ::type-class. Given map namespace adds the given
+  namespace to the generated keywords"
   [jaxb-type-obj & m]
+  (debug "JAX-B conversion has been strated with" m)
   (when-not (:type-keyword (first m))
     (warn ":type-keyword was not specified in" m ::type-class "will be used as type keyword..."))
   (-> {:current-obj jaxb-type-obj
+       :map-ns (:map-ns (first m))
        :type-keyword (or (:type-keyword (first m)) ::type-class)
        :type-mappings (:type-mappings (first m))}
       add-object-bean-map
@@ -528,7 +552,6 @@
 
 (defn- merge-new-members
   [m new-members]
-  ;; (debug "New members are" new-members)
   (update-in m [:members] #(into new-members %))) ;; new members should replace old ones
 
 (defn- call-again-if-base-not-nil
@@ -562,7 +585,9 @@
   [m]
   {:pre [(:current-member-name m)
          (:current-obj m)]}
-  ;; (debug "Adding property map for the following m" m)
+  (debug "Adding property map for the following m"
+         (:current-member-name m)
+         (:current-obj m))
   (->> (assoc m :members #{})
        :current-obj
        class
@@ -578,6 +603,7 @@
 (defn- add-propperty-getter-member-map
   [m]
   {:pre [(:current-property-getter-name m)]}
+  (debug "Adding property getter" (:current-property-getter-name m))
   (->> (assoc m :current-member-name (:current-property-getter-name m))
        add-property-member-map
        :current-property-member-map
@@ -586,7 +612,10 @@
 (defn- add-propperty-setter-member-map
   [m]
   {:pre [(:current-property-setter-name m)]}
-  ;; (debug "Adding property setter" m)
+  (debug "Adding property setter" (:current-property-setter-name m)
+         (->> (assoc m :current-member-name (:current-property-setter-name m))
+              add-property-member-map
+              :current-property-member-map))
   (->> (assoc m :current-member-name (:current-property-setter-name m))
        add-property-member-map
        :current-property-member-map
@@ -595,6 +624,7 @@
 
 (defn- add-current-property-getter-name
   [m]
+  (debug "Adding current property getter name" (:current-property-key m))
   (->> m
        :current-property-key
        name
@@ -637,6 +667,7 @@
 (defn- resolve-type-class
   [m]
   {:pre [(:target-map-keyword m) (keyword? (:target-map-keyword m))]}
+  (debug "Resolving type class" (:type-keyword m))
   (if (get-in m [(:target-map-keyword m) (:type-keyword m)])
     (when-not (class? (get-in m [(:target-map-keyword m) (:type-keyword m)]))
       (update-in m [(:target-map-keyword m) (:type-keyword m)]
@@ -893,7 +924,7 @@
 
 (defn- resolve-type-class-of-property-val
   [m]
-  ;; (debug ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
+  (debug "Resolving:" ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
   (-> m
       (assoc :target-map-keyword :current-property-val)
       resolve-type-class
@@ -903,7 +934,7 @@
 (defn- add-compatible-properties
   [m]
   {:pre [(:current-property-key m) (:current-property-val m)]}
-  ;; (debug "Adding maps for the property" m)
+  (debug "Adding maps for the property" m)
   (when-not (= (:current-property-key m) (:type-keyword m))
     (-> m
         add-current-property-setter-name
@@ -952,7 +983,7 @@
   in (:type-keyword m) into class types, i.e., jaxb class names. Class
   names are specified with namespaces and are strings."
   [type-map jaxb-type-obj & m]
-  ;; (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
+  (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
   (-> {:current-map type-map
        :current-obj jaxb-type-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
