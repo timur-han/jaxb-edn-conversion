@@ -1,4 +1,4 @@
-(defproject uni-stuttgart.ipsm/jaxb-edn-conversion "0.0.1-SNAPSHOT"
+(defproject uni-stuttgart.ipsm/jaxb-edn-conversion "0.0.2-SNAPSHOT"
   :description "A library to convert jaxb objects into edn maps and vice versa"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"

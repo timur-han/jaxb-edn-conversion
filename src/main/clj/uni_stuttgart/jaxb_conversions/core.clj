@@ -280,7 +280,7 @@
   {:pre [(:current-property-key m)
          (:target-field-type m)
          (:current-property-val m)]}
-  (debug "Resolving field" (:map-ns m) (:current-property-key m) (:current-property-val m))
+  ;; (debug "Resolving field" (:map-ns m) (:current-property-key m) (:current-property-val m))
   (cond
     ;; another type that needs to be resolved
     (= (:target-field-type m) :complex-type)
@@ -598,6 +598,7 @@
        (filter #(= (str (:name %))
                    (:current-member-name m)))
        first
+       (#(do (debug "Found member" %) %))
        (assoc m :current-property-member-map)))
 
 (defn- add-propperty-getter-member-map
@@ -612,10 +613,10 @@
 (defn- add-propperty-setter-member-map
   [m]
   {:pre [(:current-property-setter-name m)]}
-  (debug "Adding property setter" (:current-property-setter-name m)
-         (->> (assoc m :current-member-name (:current-property-setter-name m))
-              add-property-member-map
-              :current-property-member-map))
+  ;; (debug "Adding property setter" (:current-property-setter-name m)
+  ;;        (->> (assoc m :current-member-name (:current-property-setter-name m))
+  ;;             add-property-member-map
+  ;;             :current-property-member-map))
   (->> (assoc m :current-member-name (:current-property-setter-name m))
        add-property-member-map
        :current-property-member-map
@@ -624,12 +625,12 @@
 
 (defn- add-current-property-getter-name
   [m]
-  (debug "Adding current property getter name" (:current-property-key m))
+  (debug "Adding current property getter name" (:current-property-val m))
   (->> m
        :current-property-key
        name
        cs/->PascalCase
-       (str "get")
+       (#(if (= (type (:current-property-val m)) java.lang.Boolean) (str "is" %) (str "get" %)))
        (assoc m :current-property-getter-name)))
 
 (defn- add-current-property-setter-name
@@ -667,7 +668,8 @@
 (defn- resolve-type-class
   [m]
   {:pre [(:target-map-keyword m) (keyword? (:target-map-keyword m))]}
-  (debug "Resolving type class" (:type-keyword m))
+  ;; (debug "Resolving type class"
+  ;;        m)
   (if (get-in m [(:target-map-keyword m) (:type-keyword m)])
     (when-not (class? (get-in m [(:target-map-keyword m) (:type-keyword m)]))
       (update-in m [(:target-map-keyword m) (:type-keyword m)]
@@ -898,17 +900,26 @@
   {:pre [(:current-obj m)
          (:target-field-class m)]}
   ;; (debug "Adding field object" m)
-  ;; (debug "Type of class field " (:target-field-class m) (type (:target-field-class m)))
+  (debug "Type of class field " (:target-field-class m) (type (:target-field-class m)))
   (when (:current-property-getter-map m)
     (assoc m :current-field-val
            (cond
              (call-method* (:current-obj m)
-                             (:name (:current-property-getter-map m)))
+                           (:name (:current-property-getter-map m)))
              (call-method* (:current-obj m)
                            (:name (:current-property-getter-map m)))
              ;;
              (= javax.xml.namespace.QName (:target-field-class m))
              (javax.xml.namespace.QName/valueOf (:current-property-val m))
+
+             (= java.lang.Boolean (:target-field-class m))
+             (:current-property-val m)
+
+             (= java.math.BigInteger (:target-field-class m))
+             (java.math.BigInteger/valueOf (:current-property-val m))
+
+             (= java.lang.Integer (:target-field-class m))
+             (java.lang.Integer/valueOf (:current-property-val m))
 
              (= javax.xml.datatype.XMLGregorianCalendar (:target-field-class m))
              (cond
@@ -916,6 +927,7 @@
                (.newXMLGregorianCalendar (javax.xml.datatype.DatatypeFactory/newInstance))
                (instance? javax.xml.datatype.XMLGregorianCalendar (:current-property-val m))
                (:current-property-val m))
+
              ;;
              :else
              (clojure.lang.Reflector/invokeConstructor (:target-field-class m) (to-array []))))))
@@ -924,7 +936,7 @@
 
 (defn- resolve-type-class-of-property-val
   [m]
-  (debug "Resolving:" ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
+  ;; (debug "Resolving:" ((:type-keyword m) (:current-property-val m)) (:current-property-getter-map m))
   (-> m
       (assoc :target-map-keyword :current-property-val)
       resolve-type-class
@@ -953,6 +965,7 @@
 
 (defn- map-properties->obj-properties
   [m]
+  ;; (debug "Mapping properties" m)
   (->> m
        remove-nils-from-current-map
        remove-empty-values-from-current-map
