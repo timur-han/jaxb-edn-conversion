@@ -207,15 +207,16 @@
 ;; dev.clojure.org/jira/browse/CLJ-1841
 (defn- resolve-id-ref-str
   [m]
-  ; (debug "Current obj as bean" ((second (first (into [] (bean (:current-obj m)))))))
-  ((->> m
-              :current-obj
-              bean
-              (filterv #(-> m
-                            (assoc :current-property-key (first %))
-                            xml-id?))
-              first
-              second)))
+  (->> m
+       :current-obj
+       bean
+       (filterv #(do
+                   (-> m
+                       (assoc :current-property-key (first %))
+                       xml-id?)))
+       first
+       second))
+
 
 (defn- other-attributes?
   [m]
@@ -470,13 +471,13 @@
   keyword can be customized by specifiying :type-keyword in the
   additional map. Moreover, type-keywords can be used to add keywords
   instead of namespaced class strings. The structure of type-mappings
-  map is {:class-type-keyword \"namespace.classname}\". During
+  map is {:class-type-keyword \"namespace.classn806ame}\". During
   transformation current object class name is searched in the values
   of type-mappings and first matching keyword is used as type
   identifer of ::type-class. Given map namespace adds the given
   namespace to the generated keywords"
   [jaxb-type-obj & m]
-  (debug "JAX-B conversion has been strated with" m)
+  (debug "JAX-B conversion has been strated with")
   (when-not (:type-keyword (first m))
     (warn ":type-keyword was not specified in" m ::type-class "will be used as type keyword..."))
   (-> {:current-obj jaxb-type-obj
@@ -585,9 +586,6 @@
   [m]
   {:pre [(:current-member-name m)
          (:current-obj m)]}
-  (debug "Adding property map for the following m"
-         (:current-member-name m)
-         (:current-obj m))
   (->> (assoc m :members #{})
        :current-obj
        class
@@ -598,13 +596,11 @@
        (filter #(= (str (:name %))
                    (:current-member-name m)))
        first
-       (#(do (debug "Found member" %) %))
        (assoc m :current-property-member-map)))
 
 (defn- add-propperty-getter-member-map
   [m]
   {:pre [(:current-property-getter-name m)]}
-  (debug "Adding property getter" (:current-property-getter-name m))
   (->> (assoc m :current-member-name (:current-property-getter-name m))
        add-property-member-map
        :current-property-member-map
@@ -625,7 +621,6 @@
 
 (defn- add-current-property-getter-name
   [m]
-  (debug "Adding current property getter name" (:current-property-val m))
   (->> m
        :current-property-key
        name
@@ -657,7 +652,6 @@
 (defn- add-obj-using-generic-type
   [m]
   {:pre [(:current-property-generic-type m)]}
-  ;; (debug "Adding object using generic class" (:current-property-generic-type m))
   (assoc m :current-obj (clojure.lang.Reflector/invokeConstructor (if (class? (:current-property-generic-type m))
                                                                     (:current-property-generic-type m)
                                                                     (resolve (symbol (:current-property-generic-type m))))
@@ -809,7 +803,7 @@
 
     (= (:target-field-type m) :jaxb-element)
     (do
-      ;; (debug "It's a jaxb field" (:current-property-key m) (:current-property-val m))
+      (debug "It's a jaxb field" (:current-property-key m) (:current-property-val m))
       )
 
     (= (:target-field-type m) :int)
@@ -900,7 +894,7 @@
   {:pre [(:current-obj m)
          (:target-field-class m)]}
   ;; (debug "Adding field object" m)
-  (debug "Type of class field " (:target-field-class m) (type (:target-field-class m)))
+
   (when (:current-property-getter-map m)
     (assoc m :current-field-val
            (cond
@@ -946,7 +940,7 @@
 (defn- add-compatible-properties
   [m]
   {:pre [(:current-property-key m) (:current-property-val m)]}
-  (debug "Adding maps for the property" m)
+
   (when-not (= (:current-property-key m) (:type-keyword m))
     (-> m
         add-current-property-setter-name
@@ -996,7 +990,7 @@
   in (:type-keyword m) into class types, i.e., jaxb class names. Class
   names are specified with namespaces and are strings."
   [type-map jaxb-type-obj & m]
-  (debug "map->jaxb-type-obj" type-map jaxb-type-obj m)
+  (debug "map->jaxb-type-obj")
   (-> {:current-map type-map
        :current-obj jaxb-type-obj
        :type-keyword (or (:type-keyword (first m)) ::type-class)
